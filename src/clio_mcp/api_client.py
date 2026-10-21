@@ -87,6 +87,9 @@ class ClioCredentials:
     client_id: str | None = None
     client_secret: str | None = None
     region: str = DEFAULT_REGION
+    # Set when a header value is malformed: tools then return invalid_argument
+    # instead of calling Clio, while tools/list still works.
+    header_error: str | None = None
 
     @property
     def can_refresh(self) -> bool:
@@ -109,6 +112,7 @@ class ClioClient:
     def __init__(self, credentials: ClioCredentials, http_client: httpx.AsyncClient | None = None):
         self._credentials = credentials
         self._http = http_client
+        self.header_error = credentials.header_error
         self.host = REGION_HOSTS.get(credentials.region, REGION_HOSTS[DEFAULT_REGION])
         self.base_url = f"{self.host}{API_PATH}"
         self._token = credentials.access_token

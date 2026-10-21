@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Credential middleware: 401/400 on bad headers, per-request isolation."""
+"""Credential middleware: 401 on missing headers, deferred region errors, per-request isolation."""
 
 import asyncio
 
@@ -59,10 +59,21 @@ def test_missing_credentials_return_401(headers):
     assert ["X-Clio-Access-Token"] in resp.json()["required_one_of"]
 
 
-def test_unknown_region_returns_400():
+def test_unknown_region_still_lists_tools():
+    # The admin console refreshes the tool catalog with placeholder header values.
+    names = ["X-Clio-Access-Token", "X-Clio-Refresh-Token", "X-Clio-Client-Id", "X-Clio-Client-Secret", "X-Clio-Region"]
     with _client() as client:
-        resp = client.post("/mcp", json=LIST_TOOLS, headers=MCP_HEADERS | {"X-Clio-Access-Token": "t", "X-Clio-Region": "mars"})
-    assert resp.status_code == 400
+        resp = client.post("/mcp", json=LIST_TOOLS, headers=MCP_HEADERS | {h: "placeholder" for h in names})
+    assert resp.status_code == 200
+    assert "clio_matters_list" in resp.text
+
+
+def test_unknown_region_is_reported_by_tools():
+    call = {"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "clio_status", "arguments": {}}}
+    with _client() as client:
+        resp = client.post("/mcp", json=call, headers=MCP_HEADERS | {"X-Clio-Access-Token": "t", "X-Clio-Region": "mars"})
+    assert resp.status_code == 200
+    assert '\\"invalid_argument\\"' in resp.text and "us, ca, eu, au" in resp.text
 
 
 @pytest.mark.parametrize("auth", [{"X-Clio-Access-Token": "token"}, REFRESH])

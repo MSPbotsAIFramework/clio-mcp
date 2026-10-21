@@ -47,8 +47,9 @@ refresh token with client id / secret is present, the server calls
 refreshed token lives only for that request. Values that look like unresolved templates
 (`${...}`) are treated as missing.
 
-A request to `/mcp` without usable credentials gets HTTP 401 listing the accepted header sets;
-an unknown region gets HTTP 400.
+A request to `/mcp` without usable credentials gets HTTP 401 listing the accepted header sets.
+An unknown region does not block `tools/list`; tool calls then return an `invalid_argument`
+error naming the allowed regions.
 
 ## Tools
 

@@ -87,7 +87,8 @@ class GatewayCredentialsMiddleware:
     """Reads the Clio headers on /mcp requests into the request context.
 
     Needs X-Clio-Access-Token, or X-Clio-Refresh-Token + X-Clio-Client-Id +
-    X-Clio-Client-Secret to obtain one; otherwise 401.
+    X-Clio-Client-Secret to obtain one; otherwise 401. An unknown region does not
+    block the request (tools/list must work with any values); tools report it instead.
     """
 
     def __init__(self, app: ASGIApp):
@@ -109,12 +110,10 @@ class GatewayCredentialsMiddleware:
         refresh_token, client_id, client_secret = header(HEADER_REFRESH_TOKEN), header(HEADER_CLIENT_ID), header(HEADER_CLIENT_SECRET)
         region = (header(HEADER_REGION) or DEFAULT_REGION).lower()
 
+        header_error = None
         if region not in REGION_HOSTS:
-            await JSONResponse(
-                {"error": "Invalid region", "message": f"{HEADER_REGION} must be one of: {', '.join(REGION_HOSTS)}"},
-                status_code=400,
-            )(scope, receive, send)
-            return
+            header_error = f"{HEADER_REGION} must be one of: {', '.join(REGION_HOSTS)}"
+            region = DEFAULT_REGION
         if not (access_token or (refresh_token and client_id and client_secret)):
             await JSONResponse(
                 {
@@ -134,6 +133,7 @@ class GatewayCredentialsMiddleware:
             client_id=client_id,
             client_secret=client_secret,
             region=region,
+            header_error=header_error,
         )
         request_id = (request.headers.get("x-request-id") or "").strip()[:64] or uuid.uuid4().hex[:12]
         creds_token = _credentials_var.set(credentials)
